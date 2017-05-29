@@ -4,7 +4,7 @@ contract SafeRemotePurchase {
     uint public value;
     address public seller;
     address public buyer;
-    enum State { Created, Locked, Inactive }
+    enum State { Created, Locked, Done, Inactive }
     State public state;
 
     function SafeRemotePurchase() payable {
@@ -64,6 +64,24 @@ contract SafeRemotePurchase {
         state = State.Locked;
     }
 
+    function withdraw()
+        onlyBuyer
+        inState(State.Done)
+        returns (bool)
+    {
+        var amount = value;
+
+        if (amount > 0) {
+            value = 0;
+
+            if (!msg.sender.send(value)) {
+                value = amount;
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// Confirm that you (the buyer) received the item.
     /// This will release the locked ether.
     function confirmReceived()
@@ -74,13 +92,8 @@ contract SafeRemotePurchase {
         // It is important to change the state first because
         // otherwise, the contracts called using `send` below
         // can call in again here.
-        state = State.Inactive;
+        state = State.Done;
 
-        // Note: this actually allows both the buyer and the
-        // seller to block the refund - the withdraw pattern
-        // should be used.
-
-        buyer.transfer(value);
         seller.transfer(this.balance);
     }
 }
